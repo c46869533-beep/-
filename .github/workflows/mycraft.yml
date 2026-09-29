@@ -1,0 +1,66 @@
+name: MyCraft Build
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ZalithLauncher/ZalithLauncher2
+          ref: "2.6.1"
+          submodules: recursive
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Apply MyCraft changes
+        run: |
+          python3 - <<'PY'
+          import sys
+          def rd(p): return open(p, encoding='utf-8').read()
+          def wr(p, s): open(p, 'w', encoding='utf-8').write(s)
+          def rep(s, a, b, what):
+              if a not in s:
+                  sys.exit("PATCH FAILED: " + what)
+              return s.replace(a, b, 1)
+          Z = 'ZalithLauncher/'
+          p = Z + 'gradle.properties'; s = rd(p)
+          s = rep(s, 'launcher_name=ZalithLauncher', 'launcher_name=MyCraftLauncher', 'name')
+          s = rep(s, 'launcher_app_name=Zalith Launcher', 'launcher_app_name=MyCraft Launcher', 'app name')
+          s = rep(s, 'launcher_short_name=ZL2', 'launcher_short_name=MCL', 'short name')
+          wr(p, s)
+          p = Z + 'build.gradle.kts'; s = rd(p)
+          s = rep(s, 'applicationId = zalithPackageName\n        applicationIdSuffix = ".v2"', 'applicationId = "com.mycraft.launcher"', 'applicationId')
+          wr(p, s)
+          B = Z + 'src/main/java/com/movtery/zalithlauncher/ui/'
+          p = B + 'screens/content/LauncherScreen.kt'; s = rd(p)
+          s = rep(s, 'import androidx.compose.ui.unit.dp\n', 'import androidx.compose.ui.unit.dp\nimport androidx.compose.ui.unit.sp\n', 'import')
+          A = ['                        toVersionSettingsScreen = toVersionSettingsScreen',
+               '                    )', '                }', '            }', '        }', '    }', '}']
+          anchor = chr(10).join(A)
+          N = A[:4] + ['',
+               '            Text(',
+               '                text = "Неофициальная модифицированная версия (основана на Zalith Launcher 2)",',
+               '                fontSize = 11.sp,',
+               '                color = MaterialTheme.colorScheme.onSurfaceVariant,',
+               '                modifier = Modifier',
+               '                    .align(Alignment.BottomCenter)',
+               '                    .padding(bottom = 4.dp)',
+               '            )'] + A[4:]
+          new = chr(10).join(N)
+          s = rep(s, anchor, new, 'main screen label')
+          wr(p, s)
+          p = B + 'activities/MainActivity.kt'; s = rd(p)
+          s = rep(s, 'launcherUpgradeViewModel.checkOnAppStart()', '// launcherUpgradeViewModel.checkOnAppStart()', 'updater')
+          wr(p, s)
+          PY
+      - name: Build APK
+        run: |
+          chmod +x gradlew
+          ./gradlew ZalithLauncher:assembleDebug -Darch=arm64
+      - uses: actions/upload-artifact@v7
+        with:
+          name: MyCraft-apk
+          path: ZalithLauncher/build/outputs/apk/debug/*.apk
